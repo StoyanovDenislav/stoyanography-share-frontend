@@ -8,7 +8,8 @@ interface PhotoUploadProps {
   token: string;
 }
 
-const API_BASE_URL = "http://localhost:9001/api";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
 
 export default function PhotoUpload({ token }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);

@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import axios from "../utils/axiosInstance";
 import { default as axiosLib } from "axios";
 import CountdownTimer from "./CountdownTimer";
+import { useSSE } from "../hooks/useSSE";
 
 interface Photographer {
   id: string;
@@ -133,7 +134,34 @@ const AdminDashboard: React.FC = () => {
   const [businessName, setBusinessName] = useState("");
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
+
+  // Server-Sent Events for real-time updates
+  useSSE({
+    onPhotoEvent: () => {
+      fetchPhotos();
+      fetchCollections();
+      fetchSystemStats();
+    },
+    onCollectionEvent: () => {
+      fetchCollections();
+      fetchPhotos();
+      fetchSystemStats();
+    },
+    onClientEvent: () => {
+      fetchClients();
+      fetchPhotographers();
+      fetchSystemStats();
+    },
+    onGuestEvent: () => {
+      fetchGuests();
+      fetchClients();
+      fetchSystemStats();
+    },
+    onConnected: () => {
+      console.log("✅ Admin real-time updates connected");
+    },
+  });
 
   useEffect(() => {
     fetchSystemStats();
@@ -145,10 +173,10 @@ const AdminDashboard: React.FC = () => {
     fetchScheduledDeletions();
   }, []);
 
-  // Auto-refresh every 10 seconds
+  // Fallback polling every 15 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing admin data...");
+      console.log("🔄 Periodic refresh (15min fallback)...");
       fetchSystemStats();
       fetchPhotographers();
       fetchClients();
@@ -156,7 +184,7 @@ const AdminDashboard: React.FC = () => {
       fetchCollections();
       fetchPhotos();
       fetchScheduledDeletions();
-    }, 10000); // 10 seconds
+    }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(interval);
   }, []);

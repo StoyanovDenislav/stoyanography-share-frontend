@@ -43,8 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
-
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
   // Configure axios to always send cookies
   axios.defaults.withCredentials = true;
 

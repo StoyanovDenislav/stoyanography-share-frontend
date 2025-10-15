@@ -4,7 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import MasonryPhotoGrid from "./MasonryPhotoGrid";
+import DarkModeToggle from "./DarkModeToggle";
 import CountdownTimer from "./CountdownTimer";
+import { useSSE } from "../hooks/useSSE";
 
 interface Photo {
   id: string;
@@ -60,7 +62,23 @@ const ClientDashboard: React.FC = () => {
   const [expirationDays, setExpirationDays] = useState(7);
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
+
+  // Server-Sent Events for real-time updates
+  useSSE({
+    onCollectionEvent: () => {
+      fetchCollections();
+      if (activeTab === "collections" && selectedCollection) {
+        fetchPhotos();
+      }
+    },
+    onGuestEvent: () => {
+      fetchGuests();
+    },
+    onConnected: () => {
+      console.log("✅ Client real-time updates connected");
+    },
+  });
 
   // Initial data load on mount
   useEffect(() => {
@@ -77,16 +95,16 @@ const ClientDashboard: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Auto-refresh every 10 seconds to catch expiring collections
+  // Fallback polling every 15 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing client data...");
+      console.log("🔄 Periodic refresh (15min fallback)...");
       if (activeTab === "collections") {
         fetchCollections();
       } else if (activeTab === "guests") {
         fetchGuests();
       }
-    }, 10000); // 10 seconds
+    }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(interval);
   }, [activeTab]);

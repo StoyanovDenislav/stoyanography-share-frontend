@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
+import { useSSE } from "../hooks/useSSE";
 
 interface Photo {
   id: string;
@@ -23,18 +24,28 @@ const GuestDashboard: React.FC = () => {
   const [error, setError] = useState("");
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
+
+  // Server-Sent Events for real-time updates
+  useSSE({
+    onPhotoEvent: () => {
+      fetchPhotos();
+    },
+    onConnected: () => {
+      console.log("✅ Guest real-time updates connected");
+    },
+  });
 
   useEffect(() => {
     fetchPhotos();
   }, []);
 
-  // Auto-refresh every 10 seconds
+  // Fallback polling every 15 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing guest photos...");
+      console.log("🔄 Periodic refresh (15min fallback)...");
       fetchPhotos();
-    }, 10000); // 10 seconds
+    }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(interval);
   }, []);

@@ -6,6 +6,7 @@ import axios from "axios";
 import MasonryPhotoGrid from "./MasonryPhotoGrid";
 import DarkModeToggle from "./DarkModeToggle";
 import CountdownTimer from "./CountdownTimer";
+import { useSSE } from "../hooks/useSSE";
 
 interface Client {
   id: string;
@@ -83,7 +84,30 @@ const PhotographerDashboard: React.FC = () => {
   >([]);
 
   const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
+
+  // Server-Sent Events for real-time updates
+  useSSE({
+    onPhotoEvent: (event) => {
+      console.log("📸 Photo event:", event.type);
+      fetchPhotos();
+      fetchCollections(); // Photos affect collection counts
+    },
+    onCollectionEvent: (event) => {
+      console.log("📁 Collection event:", event.type);
+      fetchCollections();
+      if (event.type === "collection.deleted" || event.type === "collection.expired") {
+        fetchPhotos(); // Collection deletion affects photos
+      }
+    },
+    onClientEvent: (event) => {
+      console.log("👤 Client event:", event.type);
+      fetchClients();
+    },
+    onConnected: () => {
+      console.log("✅ Real-time updates connected");
+    },
+  });
 
   // Initial data load on mount
   useEffect(() => {
@@ -103,19 +127,18 @@ const PhotographerDashboard: React.FC = () => {
     }
   }, [activeTab, selectedCollection]);
 
-  // Auto-refresh every 10 seconds to catch expiring collections
+  // Fallback polling every 15 minutes (in case SSE connection drops)
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing data...");
+      console.log("🔄 Periodic refresh (15min fallback)...");
       if (activeTab === "photos") {
         fetchPhotos();
       }
       if (activeTab === "clients") {
         fetchClients();
       }
-      // Always refresh collections to catch timer updates and expirations
       fetchCollections();
-    }, 10000); // 10 seconds (matches backend cleanup interval)
+    }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(interval);
   }, [activeTab, selectedCollection]);

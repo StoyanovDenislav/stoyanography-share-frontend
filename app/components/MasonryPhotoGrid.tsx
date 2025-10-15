@@ -26,9 +26,8 @@ interface MasonryPhotoGridProps {
   selectable?: boolean;
   userRole?: "photographer" | "client" | "guest"; // Add user role for endpoint selection
 }
-
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
 
 const MasonryPhotoGrid: React.FC<MasonryPhotoGridProps> = ({
   photos,

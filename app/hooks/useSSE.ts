@@ -34,7 +34,7 @@ export const useSSE = (options: UseSSEOptions = {}) => {
 
     try {
       console.log("📡 Connecting to SSE...");
-      
+
       const eventSource = new EventSource(`${API_BASE_URL}/events`, {
         withCredentials: true,
       });
@@ -74,10 +74,15 @@ export const useSSE = (options: UseSSEOptions = {}) => {
         eventSourceRef.current = null;
 
         // Exponential backoff for reconnection
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        const delay = Math.min(
+          1000 * Math.pow(2, reconnectAttemptsRef.current),
+          30000
+        );
         reconnectAttemptsRef.current++;
 
-        console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})...`);
+        console.log(
+          `🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})...`
+        );
 
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();

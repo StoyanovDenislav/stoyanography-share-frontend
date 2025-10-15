@@ -96,7 +96,10 @@ const PhotographerDashboard: React.FC = () => {
     onCollectionEvent: (event) => {
       console.log("📁 Collection event:", event.type);
       fetchCollections();
-      if (event.type === "collection.deleted" || event.type === "collection.expired") {
+      if (
+        event.type === "collection.deleted" ||
+        event.type === "collection.expired"
+      ) {
         fetchPhotos(); // Collection deletion affects photos
       }
     },

@@ -207,7 +207,9 @@ const PhotographerDashboard: React.FC = () => {
 
   // Create debounced versions to prevent rapid consecutive calls
   const fetchClients = useCallback(debounce(fetchClientsRaw, 1000), []);
-  const fetchPhotos = useCallback(debounce(fetchPhotosRaw, 1000), [selectedCollection]);
+  const fetchPhotos = useCallback(debounce(fetchPhotosRaw, 1000), [
+    selectedCollection,
+  ]);
   const fetchCollections = useCallback(debounce(fetchCollectionsRaw, 1000), []);
 
   // Refresh all data

@@ -27,10 +27,10 @@ export const useSSE = (options: UseSSEOptions = {}) => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 3; // Limit reconnection attempts
-  
+
   // Use refs for callbacks to prevent reconnection on re-render
   const optionsRef = useRef(options);
-  
+
   // Update refs when options change, but don't reconnect
   useEffect(() => {
     optionsRef.current = options;
@@ -56,7 +56,7 @@ export const useSSE = (options: UseSSEOptions = {}) => {
       eventSource.onmessage = (event) => {
         try {
           const data: SSEEvent = JSON.parse(event.data);
-          
+
           // Only log non-ping events to reduce console spam
           if (data.type !== "ping") {
             console.log("📡 SSE event received:", data.type);
@@ -95,7 +95,9 @@ export const useSSE = (options: UseSSEOptions = {}) => {
           reconnectAttemptsRef.current++;
 
           console.log(
-            `🔄 Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`
+            `🔄 Reconnecting in ${delay / 1000}s (attempt ${
+              reconnectAttemptsRef.current
+            }/${maxReconnectAttempts})...`
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {

@@ -239,7 +239,10 @@ const AdminDashboard: React.FC = () => {
 
   // Debounced versions (prevent rapid consecutive calls from SSE events)
   const fetchSystemStats = useCallback(debounce(fetchSystemStatsRaw, 1000), []);
-  const fetchPhotographers = useCallback(debounce(fetchPhotographersRaw, 1000), []);
+  const fetchPhotographers = useCallback(
+    debounce(fetchPhotographersRaw, 1000),
+    []
+  );
   const fetchClients = useCallback(debounce(fetchClientsRaw, 1000), []);
 
   // REMOVED - Guest functionality disabled
@@ -366,7 +369,7 @@ const AdminDashboard: React.FC = () => {
         fetchScheduledDeletions();
         fetchPhotographers();
         fetchClients();
-       // fetchGuests();
+        // fetchGuests();
         fetchCollections();
         fetchPhotos();
         fetchSystemStats();
@@ -550,7 +553,7 @@ const AdminDashboard: React.FC = () => {
 
       if (response.data.success) {
         setSuccess(`Guest "${guestName}" marked for deletion.`);
-       // fetchGuests();
+        // fetchGuests();
         fetchSystemStats();
         fetchScheduledDeletions();
       }
@@ -1041,7 +1044,7 @@ const AdminDashboard: React.FC = () => {
       </div>
     </div>
   );
-  */  const renderCollections = () => (
+  */ const renderCollections = () => (
     <div className="bg-white rounded-lg shadow">
       <div className="px-6 py-4 border-b border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800">📁 Collections</h2>
@@ -1583,13 +1586,11 @@ const AdminDashboard: React.FC = () => {
             {success}
           </div>
         )}
-
         {error && (
           <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-md">
             {error}
           </div>
         )}
-
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
@@ -1668,12 +1669,12 @@ const AdminDashboard: React.FC = () => {
             </nav>
           </div>
         </div>
-
         {/* Tab Content */}
         {activeTab === "overview" && renderOverview()}
         {activeTab === "photographers" && renderPhotographers()}
         {activeTab === "clients" && renderClients()}
-        {/* {activeTab === "guests" && renderGuests()} */} {/* REMOVED - Guest functionality disabled */}
+        {/* {activeTab === "guests" && renderGuests()} */}{" "}
+        {/* REMOVED - Guest functionality disabled */}
         {activeTab === "collections" && renderCollections()}
         {activeTab === "photos" && renderPhotos()}
         {activeTab === "pending-deletions" && renderPendingDeletions()}

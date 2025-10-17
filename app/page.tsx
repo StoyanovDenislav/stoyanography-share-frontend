@@ -7,10 +7,10 @@ import UnifiedLogin from "./components/UnifiedLogin";
 import AdminDashboard from "./components/AdminDashboard";
 import PhotographerDashboard from "./components/PhotographerDashboard";
 import ClientDashboard from "./components/ClientDashboard";
-import GuestDashboard from "./components/GuestDashboard";
+// import GuestDashboard from "./components/GuestDashboard"; // REMOVED - Guest functionality disabled
 
 export default function Home() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -51,7 +51,25 @@ export default function Home() {
     case "client":
       return <ClientDashboard />;
     case "guest":
-      return <GuestDashboard />;
+      // Guest access has been disabled
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              ⛔ Guest Access Disabled
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Guest accounts are no longer supported on this platform.
+            </p>
+            <button
+              onClick={logout}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-md transition duration-200"
+            >
+              Return to Login
+            </button>
+          </div>
+        </div>
+      );
     default:
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">

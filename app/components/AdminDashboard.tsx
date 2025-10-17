@@ -1,11 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "../utils/axiosInstance";
 import { default as axiosLib } from "axios";
 import CountdownTimer from "./CountdownTimer";
 import { useSSE } from "../hooks/useSSE";
+
+// Debounce utility to prevent rapid consecutive API calls
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 
 interface Photographer {
   id: string;
@@ -109,7 +121,7 @@ const AdminDashboard: React.FC = () => {
     | "overview"
     | "photographers"
     | "clients"
-    | "guests"
+    // | "guests" // REMOVED - Guest functionality disabled
     | "collections"
     | "photos"
     | "pending-deletions"
@@ -117,7 +129,7 @@ const AdminDashboard: React.FC = () => {
 
   const [photographers, setPhotographers] = useState<Photographer[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [guests, setGuests] = useState<Guest[]>([]);
+  // const [guests, setGuests] = useState<Guest[]>([]); // REMOVED - Guest functionality disabled
   const [collections, setCollections] = useState<Collection[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -136,30 +148,32 @@ const AdminDashboard: React.FC = () => {
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
 
-  // Server-Sent Events for real-time updates
+  // Server-Sent Events for real-time updates (OPTIMIZED: minimal targeted fetches)
   useSSE({
     onPhotoEvent: () => {
+      // Only fetch photos and collections (not system stats on every photo event)
       fetchPhotos();
       fetchCollections();
-      fetchSystemStats();
     },
     onCollectionEvent: () => {
+      // Only fetch collections (photos are unaffected by collection changes)
       fetchCollections();
-      fetchPhotos();
-      fetchSystemStats();
     },
     onClientEvent: () => {
+      // Only fetch clients and photographers (related entities)
       fetchClients();
       fetchPhotographers();
-      fetchSystemStats();
     },
-    onGuestEvent: () => {
-      fetchGuests();
-      fetchClients();
-      fetchSystemStats();
-    },
+    // REMOVED - Guest functionality disabled
+    // onGuestEvent: () => {
+    //   fetchGuests();
+    //   fetchClients();
+    //   fetchSystemStats();
+    // },
     onConnected: () => {
       console.log("✅ Admin real-time updates connected");
+      // Fetch stats once on connection, not on every event
+      fetchSystemStats();
     },
   });
 
@@ -167,29 +181,30 @@ const AdminDashboard: React.FC = () => {
     fetchSystemStats();
     fetchPhotographers();
     fetchClients();
-    fetchGuests();
+    // fetchGuests(); // REMOVED - Guest functionality disabled
     fetchCollections();
     fetchPhotos();
     fetchScheduledDeletions();
   }, []);
 
-  // Fallback polling every 15 minutes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("🔄 Periodic refresh (15min fallback)...");
-      fetchSystemStats();
-      fetchPhotographers();
-      fetchClients();
-      fetchGuests();
-      fetchCollections();
-      fetchPhotos();
-      fetchScheduledDeletions();
-    }, 15 * 60 * 1000); // 15 minutes
+  // REMOVED - 15-minute polling causes excessive API requests
+  // SSE provides real-time updates, polling is unnecessary
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     console.log("🔄 Periodic refresh (15min fallback)...");
+  //     fetchSystemStats();
+  //     fetchPhotographers();
+  //     fetchClients();
+  //     fetchCollections();
+  //     fetchPhotos();
+  //     fetchScheduledDeletions();
+  //   }, 15 * 60 * 1000); // 15 minutes
+  //
+  //   return () => clearInterval(interval);
+  // }, []);
 
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchSystemStats = async () => {
+  // Raw fetch functions
+  const fetchSystemStatsRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/stats`);
       if (response.data.success) {
@@ -200,7 +215,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchPhotographers = async () => {
+  const fetchPhotographersRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/photographers`);
       if (response.data.success) {
@@ -211,7 +226,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchClients = async () => {
+  const fetchClientsRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/clients`);
       if (response.data.success) {
@@ -222,18 +237,24 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchGuests = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/admin/guests`);
-      if (response.data.success) {
-        setGuests(response.data.guests);
-      }
-    } catch (error) {
-      console.error("Error fetching guests:", error);
-    }
-  };
+  // Debounced versions (prevent rapid consecutive calls from SSE events)
+  const fetchSystemStats = useCallback(debounce(fetchSystemStatsRaw, 1000), []);
+  const fetchPhotographers = useCallback(debounce(fetchPhotographersRaw, 1000), []);
+  const fetchClients = useCallback(debounce(fetchClientsRaw, 1000), []);
 
-  const fetchCollections = async () => {
+  // REMOVED - Guest functionality disabled
+  // const fetchGuests = async () => {
+  //   try {
+  //     const response = await axios.get(`${API_BASE_URL}/admin/guests`);
+  //     if (response.data.success) {
+  //       setGuests(response.data.guests);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching guests:", error);
+  //   }
+  // };
+
+  const fetchCollectionsRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/collections`);
       if (response.data.success) {
@@ -244,7 +265,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchPhotos = async () => {
+  const fetchPhotosRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/photos`);
       if (response.data.success) {
@@ -254,6 +275,10 @@ const AdminDashboard: React.FC = () => {
       console.error("Error fetching photos:", error);
     }
   };
+
+  // Create debounced versions to prevent rapid consecutive calls
+  const fetchCollections = useCallback(debounce(fetchCollectionsRaw, 1000), []);
+  const fetchPhotos = useCallback(debounce(fetchPhotosRaw, 1000), []);
 
   const fetchScheduledDeletions = async () => {
     try {
@@ -275,7 +300,7 @@ const AdminDashboard: React.FC = () => {
       fetchSystemStats(),
       fetchPhotographers(),
       fetchClients(),
-      fetchGuests(),
+      //fetchGuests(),
       fetchCollections(),
       fetchPhotos(),
       fetchScheduledDeletions(),
@@ -341,7 +366,7 @@ const AdminDashboard: React.FC = () => {
         fetchScheduledDeletions();
         fetchPhotographers();
         fetchClients();
-        fetchGuests();
+       // fetchGuests();
         fetchCollections();
         fetchPhotos();
         fetchSystemStats();
@@ -383,7 +408,7 @@ const AdminDashboard: React.FC = () => {
         fetchScheduledDeletions();
         fetchPhotographers();
         fetchClients();
-        fetchGuests();
+        //fetchGuests();
         fetchCollections();
         fetchPhotos();
         fetchSystemStats();
@@ -525,7 +550,7 @@ const AdminDashboard: React.FC = () => {
 
       if (response.data.success) {
         setSuccess(`Guest "${guestName}" marked for deletion.`);
-        fetchGuests();
+       // fetchGuests();
         fetchSystemStats();
         fetchScheduledDeletions();
       }
@@ -969,6 +994,8 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 
+  // REMOVED - Guest functionality disabled
+  /*
   const renderGuests = () => (
     <div className="bg-white rounded-lg shadow">
       <div className="px-6 py-4 border-b border-gray-200">
@@ -1006,82 +1033,15 @@ const AdminDashboard: React.FC = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {guests.map((guest) => (
-                  <tr key={guest.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {guest.guestName}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {guest.photoAccessCount} photos accessible
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {guest.username}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {guest.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm space-y-1">
-                        <div className="flex items-center">
-                          <span className="text-gray-600 text-xs mr-2">
-                            Client:
-                          </span>
-                          <span className="font-medium text-blue-700">
-                            {guest.clientName}
-                          </span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="text-gray-600 text-xs mr-2">
-                            Photographer:
-                          </span>
-                          <span className="font-semibold text-indigo-700">
-                            📷 {guest.photographerName}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(guest.expiresAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          guest.isActive
-                            ? new Date(guest.expiresAt) > new Date()
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {guest.isActive
-                          ? new Date(guest.expiresAt) > new Date()
-                            ? "Active"
-                            : "Expired"
-                          : "Revoked"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => deleteGuest(guest.id, guest.guestName)}
-                        className="text-red-600 hover:text-red-900 font-medium"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              
+          
             </table>
           </div>
         )}
       </div>
     </div>
   );
-
-  const renderCollections = () => (
+  */  const renderCollections = () => (
     <div className="bg-white rounded-lg shadow">
       <div className="px-6 py-4 border-b border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800">📁 Collections</h2>
@@ -1664,7 +1624,8 @@ const AdminDashboard: React.FC = () => {
               >
                 👥 Clients ({clients.length})
               </button>
-              <button
+              {/* REMOVED - Guest functionality disabled */}
+              {/* <button
                 onClick={() => setActiveTab("guests")}
                 className={`${
                   activeTab === "guests"
@@ -1673,7 +1634,7 @@ const AdminDashboard: React.FC = () => {
                 } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
               >
                 🎫 Guests ({guests.length})
-              </button>
+              </button> */}
               <button
                 onClick={() => setActiveTab("collections")}
                 className={`${
@@ -1712,7 +1673,7 @@ const AdminDashboard: React.FC = () => {
         {activeTab === "overview" && renderOverview()}
         {activeTab === "photographers" && renderPhotographers()}
         {activeTab === "clients" && renderClients()}
-        {activeTab === "guests" && renderGuests()}
+        {/* {activeTab === "guests" && renderGuests()} */} {/* REMOVED - Guest functionality disabled */}
         {activeTab === "collections" && renderCollections()}
         {activeTab === "photos" && renderPhotos()}
         {activeTab === "pending-deletions" && renderPendingDeletions()}

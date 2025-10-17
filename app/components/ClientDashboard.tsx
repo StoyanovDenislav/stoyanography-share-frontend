@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import MasonryPhotoGrid from "./MasonryPhotoGrid";
 import DarkModeToggle from "./DarkModeToggle";
 import CountdownTimer from "./CountdownTimer";
 import { useSSE } from "../hooks/useSSE";
+
+// Debounce utility to prevent rapid consecutive API calls
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 
 interface Photo {
   id: string;
@@ -41,11 +53,11 @@ interface Collection {
 
 const ClientDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<"collections" | "guests">(
-    "collections"
+  const [activeTab, setActiveTab] = useState<"collections">(
+    "collections" // REMOVED "guests" - Guest functionality disabled
   );
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [guests, setGuests] = useState<Guest[]>([]);
+  // const [guests, setGuests] = useState<Guest[]>([]); // REMOVED - Guest functionality disabled
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(
     null
@@ -72,9 +84,10 @@ const ClientDashboard: React.FC = () => {
         fetchPhotos();
       }
     },
-    onGuestEvent: () => {
-      fetchGuests();
-    },
+    // REMOVED - Guest functionality disabled
+    // onGuestEvent: () => {
+    //   fetchGuests();
+    // },
     onConnected: () => {
       console.log("✅ Client real-time updates connected");
     },
@@ -83,33 +96,34 @@ const ClientDashboard: React.FC = () => {
   // Initial data load on mount
   useEffect(() => {
     fetchCollections();
-    fetchGuests();
+    // fetchGuests(); // REMOVED - Guest functionality disabled
   }, []); // Run once on mount
 
   // Fetch data when tab changes
   useEffect(() => {
     if (activeTab === "collections") {
       fetchCollections();
-    } else if (activeTab === "guests") {
-      fetchGuests();
     }
+    // REMOVED - Guest functionality disabled
+    // else if (activeTab === "guests") {
+    //   fetchGuests();
+    // }
   }, [activeTab]);
 
-  // Fallback polling every 15 minutes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("🔄 Periodic refresh (15min fallback)...");
-      if (activeTab === "collections") {
-        fetchCollections();
-      } else if (activeTab === "guests") {
-        fetchGuests();
-      }
-    }, 15 * 60 * 1000); // 15 minutes
+  // REMOVED - 15-minute polling causes excessive API requests
+  // SSE provides real-time updates, polling is unnecessary
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     console.log("🔄 Periodic refresh (15min fallback)...");
+  //     if (activeTab === "collections") {
+  //       fetchCollections();
+  //     }
+  //   }, 15 * 60 * 1000); // 15 minutes
+  //
+  //   return () => clearInterval(interval);
+  // }, [activeTab]);
 
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  const fetchPhotos = async () => {
+  const fetchPhotosRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/client/photos`);
       if (response.data.success) {
@@ -125,18 +139,19 @@ const ClientDashboard: React.FC = () => {
     }
   };
 
-  const fetchGuests = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/client/guests`);
-      if (response.data.success) {
-        setGuests(response.data.guests);
-      }
-    } catch (error) {
-      console.error("Error fetching guests:", error);
-    }
-  };
+  // REMOVED - Guest functionality disabled
+  // const fetchGuests = async () => {
+  //   try {
+  //     const response = await axios.get(`${API_BASE_URL}/client/guests`);
+  //     if (response.data.success) {
+  //       setGuests(response.data.guests);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching guests:", error);
+  //   }
+  // };
 
-  const fetchCollections = async () => {
+  const fetchCollectionsRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/client/collections`);
       if (response.data.success) {
@@ -147,10 +162,14 @@ const ClientDashboard: React.FC = () => {
     }
   };
 
+  // Create debounced versions to prevent rapid consecutive calls
+  const fetchPhotos = useCallback(debounce(fetchPhotosRaw, 1000), []);
+  const fetchCollections = useCallback(debounce(fetchCollectionsRaw, 1000), []);
+
   // Refresh all data
   const refreshAll = async () => {
     console.log("🔄 Refreshing all client data...");
-    await Promise.all([fetchPhotos(), fetchGuests(), fetchCollections()]);
+    await Promise.all([fetchPhotos(), /* fetchGuests(), */ fetchCollections()]);
     console.log("✅ Refresh complete");
   };
 
@@ -404,7 +423,8 @@ const ClientDashboard: React.FC = () => {
               >
                 📁 Collections ({collections.length})
               </button>
-              <button
+              {/* REMOVED - Guest functionality disabled */}
+              {/* <button
                 onClick={() => setActiveTab("guests")}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === "guests"
@@ -413,7 +433,7 @@ const ClientDashboard: React.FC = () => {
                 }`}
               >
                 👥 Shared with Guests ({guests.length})
-              </button>
+              </button> */}
             </nav>
           </div>
 
@@ -594,91 +614,8 @@ const ClientDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Guests Tab */}
-          {activeTab === "guests" && (
-            <div>
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  Guest Access Management
-                </h2>
-              </div>
-
-              <div className="px-6 py-4">
-                {guests.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No guests created yet. Select photos and share them with
-                    guests!
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {guests.map((guest) => (
-                      <div
-                        key={guest.id}
-                        className={`bg-gray-50 rounded-lg p-4 flex justify-between items-center border-2 ${
-                          guest.isActive
-                            ? "border-green-200"
-                            : "border-gray-300 opacity-60"
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-900">
-                              {guest.guestName}
-                            </h3>
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                guest.isActive
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {guest.isActive ? "Active" : "Disabled"}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Username:{" "}
-                            <span className="font-mono">{guest.username}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Shared {guest.sharedPhotoCount} photo(s)
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Expires:{" "}
-                            {new Date(guest.expiresAt).toLocaleDateString()}
-                            {guest.isActive &&
-                              ` (${formatTimeLeft(guest.expiresAt)})`}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() =>
-                              handleToggleGuestAccess(guest.id, guest.isActive)
-                            }
-                            disabled={isLoading}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition duration-200 ${
-                              guest.isActive
-                                ? "bg-red-600 hover:bg-red-700 text-white"
-                                : "bg-green-600 hover:bg-green-700 text-white"
-                            } disabled:opacity-50`}
-                            title={
-                              guest.isActive
-                                ? "Revoke access"
-                                : "Restore access"
-                            }
-                          >
-                            {guest.isActive
-                              ? "🚫 Revoke Access"
-                              : "✅ Restore Access"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Guests Tab - REMOVED - Guest functionality disabled */}
+          {/* {activeTab === "guests" && (...)} */}
         </div>
       </div>
 

@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import MasonryPhotoGrid from "./MasonryPhotoGrid";
 import DarkModeToggle from "./DarkModeToggle";
 import CountdownTimer from "./CountdownTimer";
 import { useSSE } from "../hooks/useSSE";
+
+// Debounce utility to prevent rapid consecutive API calls
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 
 interface Client {
   id: string;
@@ -86,25 +98,25 @@ const PhotographerDashboard: React.FC = () => {
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:6002/api";
 
-  // Server-Sent Events for real-time updates
+  // Server-Sent Events for real-time updates (OPTIMIZED: minimal targeted fetches)
   useSSE({
     onPhotoEvent: (event) => {
-      console.log("📸 Photo event:", event.type);
+      // Only fetch photos (collections count updated separately)
       fetchPhotos();
-      fetchCollections(); // Photos affect collection counts
     },
     onCollectionEvent: (event) => {
-      console.log("📁 Collection event:", event.type);
+      // Only fetch collections
       fetchCollections();
+      // Only fetch photos if collection was deleted (affects photo visibility)
       if (
         event.type === "collection.deleted" ||
         event.type === "collection.expired"
       ) {
-        fetchPhotos(); // Collection deletion affects photos
+        fetchPhotos();
       }
     },
     onClientEvent: (event) => {
-      console.log("👤 Client event:", event.type);
+      // Only fetch clients when client data changes
       fetchClients();
     },
     onConnected: () => {
@@ -130,23 +142,24 @@ const PhotographerDashboard: React.FC = () => {
     }
   }, [activeTab, selectedCollection]);
 
-  // Fallback polling every 15 minutes (in case SSE connection drops)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("🔄 Periodic refresh (15min fallback)...");
-      if (activeTab === "photos") {
-        fetchPhotos();
-      }
-      if (activeTab === "clients") {
-        fetchClients();
-      }
-      fetchCollections();
-    }, 15 * 60 * 1000); // 15 minutes
+  // REMOVED - 15-minute polling causes excessive API requests
+  // SSE provides real-time updates, polling is unnecessary
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     console.log("🔄 Periodic refresh (15min fallback)...");
+  //     if (activeTab === "photos") {
+  //       fetchPhotos();
+  //     }
+  //     if (activeTab === "clients") {
+  //       fetchClients();
+  //     }
+  //     fetchCollections();
+  //   }, 15 * 60 * 1000); // 15 minutes
+  //
+  //   return () => clearInterval(interval);
+  // }, [activeTab, selectedCollection]);
 
-    return () => clearInterval(interval);
-  }, [activeTab, selectedCollection]);
-
-  const fetchClients = async () => {
+  const fetchClientsRaw = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/photographer/clients`);
       if (response.data.success) {
@@ -157,7 +170,7 @@ const PhotographerDashboard: React.FC = () => {
     }
   };
 
-  const fetchPhotos = async () => {
+  const fetchPhotosRaw = async () => {
     try {
       let url;
       if (selectedCollection && selectedCollection !== "uncategorized") {
@@ -179,7 +192,7 @@ const PhotographerDashboard: React.FC = () => {
     }
   };
 
-  const fetchCollections = async () => {
+  const fetchCollectionsRaw = async () => {
     try {
       const response = await axios.get(
         `${API_BASE_URL}/photographer/collections`
@@ -191,6 +204,11 @@ const PhotographerDashboard: React.FC = () => {
       console.error("Error fetching collections:", error);
     }
   };
+
+  // Create debounced versions to prevent rapid consecutive calls
+  const fetchClients = useCallback(debounce(fetchClientsRaw, 1000), []);
+  const fetchPhotos = useCallback(debounce(fetchPhotosRaw, 1000), [selectedCollection]);
+  const fetchCollections = useCallback(debounce(fetchCollectionsRaw, 1000), []);
 
   // Refresh all data
   const refreshAll = async () => {

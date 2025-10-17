@@ -20,12 +20,21 @@ interface UseSSEOptions {
 
 /**
  * Custom hook for Server-Sent Events (SSE) real-time updates
- * Automatically reconnects on disconnect
+ * OPTIMIZED: Limited auto-reconnection to prevent request spam
  */
 export const useSSE = (options: UseSSEOptions = {}) => {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 3; // Limit reconnection attempts
+  
+  // Use refs for callbacks to prevent reconnection on re-render
+  const optionsRef = useRef(options);
+  
+  // Update refs when options change, but don't reconnect
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const connect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -47,21 +56,25 @@ export const useSSE = (options: UseSSEOptions = {}) => {
       eventSource.onmessage = (event) => {
         try {
           const data: SSEEvent = JSON.parse(event.data);
-          console.log("📡 SSE event received:", data.type);
+          
+          // Only log non-ping events to reduce console spam
+          if (data.type !== "ping") {
+            console.log("📡 SSE event received:", data.type);
+          }
 
-          // Handle different event types
+          // Handle different event types using current callback refs
           if (data.type === "connected") {
-            options.onConnected?.();
+            optionsRef.current.onConnected?.();
           } else if (data.type === "ping") {
             // Keepalive ping, no action needed
           } else if (data.type?.startsWith("photo.")) {
-            options.onPhotoEvent?.(data);
+            optionsRef.current.onPhotoEvent?.(data);
           } else if (data.type?.startsWith("collection.")) {
-            options.onCollectionEvent?.(data);
+            optionsRef.current.onCollectionEvent?.(data);
           } else if (data.type?.startsWith("client.")) {
-            options.onClientEvent?.(data);
+            optionsRef.current.onClientEvent?.(data);
           } else if (data.type?.startsWith("guest.")) {
-            options.onGuestEvent?.(data);
+            optionsRef.current.onGuestEvent?.(data);
           }
         } catch (error) {
           console.error("Failed to parse SSE event:", error);
@@ -73,30 +86,36 @@ export const useSSE = (options: UseSSEOptions = {}) => {
         eventSource.close();
         eventSourceRef.current = null;
 
-        // Exponential backoff for reconnection
-        const delay = Math.min(
-          1000 * Math.pow(2, reconnectAttemptsRef.current),
-          30000
-        );
-        reconnectAttemptsRef.current++;
+        // LIMITED reconnection attempts to prevent request spam
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(
+            5000 * Math.pow(2, reconnectAttemptsRef.current), // Start at 5 seconds
+            60000 // Max 60 seconds
+          );
+          reconnectAttemptsRef.current++;
 
-        console.log(
-          `🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})...`
-        );
+          console.log(
+            `🔄 Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`
+          );
 
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, delay);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, delay);
+        } else {
+          console.warn(
+            `⚠️ Max reconnection attempts (${maxReconnectAttempts}) reached. Reload page to reconnect.`
+          );
+        }
 
-        options.onError?.(new Error("SSE connection error"));
+        optionsRef.current.onError?.(new Error("SSE connection error"));
       };
 
       eventSourceRef.current = eventSource;
     } catch (error) {
       console.error("Failed to create SSE connection:", error);
-      options.onError?.(error as Error);
+      optionsRef.current.onError?.(error as Error);
     }
-  }, [options]);
+  }, []); // Empty dependencies - only create once!
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
